@@ -22,12 +22,36 @@ export interface NavItem {
     isActive?: boolean;
 }
 
+// Define property shape
+export interface PropertyData {
+    id: number;
+    name: string;
+    code: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    province: string;
+    country: string;
+    telephone?: string;
+    website?: string;
+    sec_no?: string;
+    hlurb_no?: string;
+    rdo?: string;
+    tin_no?: string;
+    totalUnits?: number;
+    occupiedUnits?: number;
+    monthlyRevenue?: number;
+}
+
 export interface SharedData {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
     ziggy: Config & { location: string };
     sidebarOpen: boolean;
+    // Typed properties
+    properties: PropertyData[];
+    property: PropertyData;
     [key: string]: unknown;
 }
 
