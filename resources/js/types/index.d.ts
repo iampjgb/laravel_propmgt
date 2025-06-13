@@ -86,6 +86,17 @@ export interface Report {
     // add other report fields here
 }
 
+// Define contact shape
+export interface ContactData {
+  id: number;
+  property_id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  category: string;
+  service_type?: string;
+}
+
 // Define property shape with all relations
 export interface PropertyData {
     id: number;
@@ -106,9 +117,10 @@ export interface PropertyData {
     totalUnits?: number;
     occupiedUnits?: number;
     monthlyRevenue?: number;
+    // Contact relationships
+    unitOwners?: ContactData[];
+    tenants?: ContactData[];
     // Relations
-    unitOwners?: UnitOwner[];
-    tenants?: Tenant[];
     serviceProviders?: ServiceProvider[];
     managementTeam?: ManagementMember[];
     units?: Unit[];

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Head, usePage } from "@inertiajs/react"
 import type { SharedData, PropertyData } from '@/types'
 import AppSidebarLayout from '@/layouts/app/app-sidebar-layout'
@@ -16,12 +16,18 @@ import { PropertyMaintenance } from '@/components/properties/property-maintenanc
 import { PropertyFiles } from '@/components/properties/property-files'
 
 export default function PropertiesPage() {
-  // Tell TS that page props include SharedData plus the properties array
-  const { properties } = usePage<{ properties: PropertyData[] } & SharedData>().props
-  // Initialize selectedProperty with explicit PropertyData type
+  // Pull both full list and server-selected property from Inertia props
+  const { properties, selected } = usePage<{ properties: PropertyData[]; selected: PropertyData } & SharedData>().props
+
+  // Local state seeded with the server-provided selection (fallback to first property)
   const [selectedProperty, setSelectedProperty] = useState<PropertyData | null>(
-    properties.length > 0 ? properties[0] : null
+    selected || (properties.length > 0 ? properties[0] : null)
   )
+
+  // Keep local state in sync if server selection ever changes
+  useEffect(() => {
+    setSelectedProperty(selected || (properties.length > 0 ? properties[0] : null))
+  }, [selected, properties])
 
   const tabs = [
     { label: 'Overview', value: 'overview', Component: PropertyOverview },
