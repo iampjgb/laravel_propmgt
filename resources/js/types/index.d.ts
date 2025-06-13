@@ -22,7 +22,71 @@ export interface NavItem {
     isActive?: boolean;
 }
 
-// Define property shape
+// Detailed relations interfaces
+export interface UnitOwner {
+    id: number;
+    name: string;
+    email?: string;
+    phone?: string;
+}
+
+export interface Tenant {
+    id: number;
+    name: string;
+    email?: string;
+    phone?: string;
+}
+
+export interface ServiceProvider {
+    id: number;
+    name: string;
+    service_type?: string;
+    contact?: string;
+}
+
+export interface ManagementMember {
+    id: number;
+    name: string;
+    role: string;
+    contact?: string;
+}
+
+export interface Unit {
+    id: number;
+    name: string;
+    type?: string;
+    floor?: number;
+    occupant?: string;
+    status?: string;
+}
+
+export interface Asset {
+    id: number;
+    name: string;
+    value: string;
+}
+
+export interface MaintenanceRequest {
+    id: number;
+    title: string;
+    status?: string;
+    assignedTo?: string;
+    dueDate?: string;
+}
+
+export interface PropertyFile {
+    id: number;
+    name: string;
+    url?: string;
+}
+
+export interface Report {
+    id: number;
+    name: string;
+    // add other report fields here
+}
+
+// Define property shape with all relations
 export interface PropertyData {
     id: number;
     name: string;
@@ -38,9 +102,20 @@ export interface PropertyData {
     hlurb_no?: string;
     rdo?: string;
     tin_no?: string;
+    // Metrics
     totalUnits?: number;
     occupiedUnits?: number;
     monthlyRevenue?: number;
+    // Relations
+    unitOwners?: UnitOwner[];
+    tenants?: Tenant[];
+    serviceProviders?: ServiceProvider[];
+    managementTeam?: ManagementMember[];
+    units?: Unit[];
+    assets?: Asset[];
+    maintenanceRequests?: MaintenanceRequest[];
+    files?: PropertyFile[];
+    reports?: Report[];
 }
 
 export interface SharedData {
@@ -51,7 +126,9 @@ export interface SharedData {
     sidebarOpen: boolean;
     // Typed properties
     properties: PropertyData[];
-    property: PropertyData;
+    selected?: PropertyData; // optional for selected context
+    // Legacy prop
+    property?: PropertyData;
     [key: string]: unknown;
 }
 
@@ -63,5 +140,5 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
-    [key: string]: unknown; // This allows for additional properties...
+    [key: string]: unknown;
 }

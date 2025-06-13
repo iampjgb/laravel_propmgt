@@ -5,11 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Contact;
+use App\Models\Unit;
+use App\Models\Asset;
+use App\Models\MaintenanceRequest;
+use App\Models\File;
 
 class Property extends Model
 {
     use HasFactory;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'code',
         'name',
@@ -27,7 +36,7 @@ class Property extends Model
     ];
 
     /**
-     * Unit owners: contacts with category 'unit_owner'
+     * Unit owners: contacts with category 'unit_owner'.
      */
     public function unitOwners()
     {
@@ -36,7 +45,7 @@ class Property extends Model
     }
 
     /**
-     * Tenants: contacts with category 'tenant'
+     * Tenants: contacts with category 'tenant'.
      */
     public function tenants()
     {
@@ -45,7 +54,7 @@ class Property extends Model
     }
 
     /**
-     * Service providers: contacts with category 'service_provider'
+     * Service providers: contacts with category 'service_provider'.
      */
     public function serviceProviders()
     {
@@ -54,11 +63,43 @@ class Property extends Model
     }
 
     /**
-     * Management team: contacts with category 'management'
+     * Management team: contacts with category 'management'.
      */
     public function managementTeam()
     {
         return $this->hasMany(Contact::class)
                     ->where('category', 'management');
+    }
+
+    /**
+     * Units: property units
+     */
+    public function units()
+    {
+        return $this->hasMany(Unit::class);
+    }
+
+    /**
+     * Assets belonging to the property.
+     */
+    public function assets()
+    {
+        return $this->hasMany(Asset::class);
+    }
+
+    /**
+     * Maintenance requests for the property.
+     */
+    public function maintenanceRequests()
+    {
+        return $this->hasMany(MaintenanceRequest::class);
+    }
+
+    /**
+     * File attachments for the property.
+     */
+    public function files()
+    {
+        return $this->morphMany(File::class, 'fileable');
     }
 }
