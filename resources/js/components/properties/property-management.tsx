@@ -1,55 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react'
 
-interface Property {
-    id: number;
-    name: string;
-    address: string;
-    available: boolean;
+// Define the ManagementMember type and Property interface inline
+export interface ManagementMember {
+  id: number
+  name: string
+  role: string
+  contact?: string
 }
 
-const PropertyManagement: React.FC = () => {
-    const [properties, setProperties] = useState<Property[]>([]);
+export interface Property {
+  managementTeam?: ManagementMember[]
+}
 
-    useEffect(() => {
-        // Replace this with your data fetching logic.
-        const fetchProperties = async () => {
-            try {
-                const response = await fetch('/api/properties');
-                const data = await response.json();
-                setProperties(data);
-            } catch (error) {
-                console.error('Error fetching properties:', error);
-            }
-        };
+interface PropertyManagementProps {
+  property: Property | null
+  onMemberClick?: (member: ManagementMember) => void
+}
 
-        fetchProperties();
-    }, []);
+export function PropertyManagement({
+  property,
+  onMemberClick,
+}: PropertyManagementProps) {
+  const team: ManagementMember[] = property?.managementTeam ?? []
 
-    const toggleAvailability = (id: number) => {
-        setProperties(prevProperties =>
-            prevProperties.map(property =>
-                property.id === id ? { ...property, available: !property.available } : property
-            )
-        );
-    };
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-semibold mb-4">Management Team</h2>
 
-    return (
-        <div>
-            <h1>Property Management</h1>
-            <ul>
-                {properties.map(property => (
-                    <li key={property.id}>
-                        <h2>{property.name}</h2>
-                        <p>{property.address}</p>
-                        <p>Status: {property.available ? 'Available' : 'Not Available'}</p>
-                        <button onClick={() => toggleAvailability(property.id)}>
-                            Toggle Availability
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-};
-
-export default PropertyManagement;
+      {team.length > 0 ? (
+        <ul className="space-y-3">
+          {team.map(member => (
+            <li
+              key={member.id}
+              className="p-3 bg-white rounded shadow hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+              onClick={() => onMemberClick && onMemberClick(member)}
+            >
+              <div>
+                <p className="font-medium text-gray-800">{member.name}</p>
+                <p className="text-sm text-gray-500">{member.role}</p>
+              </div>
+              {member.contact && (
+                <span className="text-sm text-blue-600">{member.contact}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500">No management team members defined.</p>
+      )}
+    </div>
+  )
+}

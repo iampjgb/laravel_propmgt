@@ -1,29 +1,43 @@
-import React from 'react';
+import React from 'react'
 
-interface PropertyFile {
-    id: number;
-    name: string;
-    // Define additional properties as needed
+// Define a PropertyFile type and Property interface inline
+export interface PropertyFile {
+  id: number
+  name: string
+  url?: string
+}
+
+export interface Property {
+  files?: PropertyFile[]
 }
 
 interface PropertyFilesProps {
-    files: PropertyFile[];
-    onFileSelect?: (file: PropertyFile) => void;
+  property: Property | null
+  onFileSelect?: (file: PropertyFile) => void
 }
 
-const PropertyFiles: React.FC<PropertyFilesProps> = ({ files, onFileSelect }) => {
-    return (
-        <div className="property-files">
-            <h2>Property Files</h2>
-            <ul>
-                {files.map(file => (
-                    <li key={file.id} onClick={() => onFileSelect && onFileSelect(file)}>
-                        {file.name}
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-};
+export function PropertyFiles({ property, onFileSelect }: PropertyFilesProps) {
+  const files: PropertyFile[] = property?.files ?? []
 
-export default PropertyFiles;
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-semibold mb-2">Property Files</h2>
+
+      {files.length > 0 ? (
+        <ul className="list-disc pl-5 space-y-1">
+          {files.map(file => (
+            <li
+              key={file.id}
+              className="cursor-pointer hover:text-blue-600"
+              onClick={() => onFileSelect && onFileSelect(file)}
+            >
+              {file.name}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500">No files available.</p>
+      )}
+    </div>
+  )
+}
