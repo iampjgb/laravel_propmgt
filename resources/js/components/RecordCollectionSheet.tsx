@@ -1,17 +1,9 @@
 "use client"
 
-import * as React from "react"
-import { ChevronDownIcon } from "lucide-react"
-import { Dialog, DialogOverlay, DialogContent } from "@/components/ui/dialog"
+import React, { useState, ChangeEvent, FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover"
 import {
   Select,
   SelectTrigger,
@@ -19,147 +11,209 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
 
-interface Props {
-  customer: { id: number; name: string }
-  onClose(): void
-  onSubmit(data: {
-    date: Date
-    receiptNo: string
-    paymentMethod: string
-    reference?: string
-    amount: number
-  }): void
+interface Customer {
+  id: number
+  name: string
+  email: string | null
+  phone: string | null
+  balance: number
+  status: string
 }
 
-export default function RecordCollectionSheet({ customer, onClose, onSubmit }: Props) {
-  const [open, setOpen] = React.useState(false)
-  const [date, setDate] = React.useState<Date>(new Date())
-  const [receiptNo, setReceiptNo] = React.useState<string>("")
-  const [method, setMethod] = React.useState<string>("Cash")
-  const [reference, setReference] = React.useState<string>("")
-  const [amount, setAmount] = React.useState<number>(0)
+export interface RecordCollectionData {
+  customerId: number
+  amount: number
+  paymentMethod: string
+  referenceNumber: string
+  paymentDate: Date
+  notes: string
+}
+
+interface RecordCollectionSheetProps {
+  customer: Customer
+  onClose: () => void
+  onSubmit: (data: RecordCollectionData) => void
+}
+
+export default function RecordCollectionSheet({
+  customer,
+  onClose,
+  onSubmit,
+}: RecordCollectionSheetProps) {
+  // Define form state with explicit types
+  const [formData, setFormData] = useState<{
+    amount: string
+    paymentMethod: string
+    referenceNumber: string
+    paymentDate: Date
+    notes: string
+  }>({
+    amount: "",
+    paymentMethod: "",
+    referenceNumber: "",
+    paymentDate: new Date(),
+    notes: "",
+  })
+
+  // Handle form submission
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    onSubmit({
+      customerId: customer.id,
+      amount: parseFloat(formData.amount),
+      paymentMethod: formData.paymentMethod,
+      referenceNumber: formData.referenceNumber,
+      paymentDate: formData.paymentDate,
+      notes: formData.notes,
+    })
+  }
+
+  // Generic field updater
+  function handleInputChange<
+    K extends keyof typeof formData
+  >(field: K, value: typeof formData[K]) {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogOverlay className="fixed inset-0 bg-black/50" />
-      <DialogContent className="fixed bottom-0 left-0 right-0 bg-white p-6 rounded-t-lg shadow-lg">
-        <h2 className="text-lg font-semibold mb-4">
-          Record Collection for {customer.name}
-        </h2>
+    <div className="space-y-6 p-6">
+      {/* Customer Info */}
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="font-medium text-gray-900">{customer.name}</h3>
+        {customer.email && (
+          <p className="text-sm text-gray-600">{customer.email}</p>
+        )}
+        <p className="text-sm font-medium text-red-600">
+          Outstanding Balance: ₱
+          {customer.balance.toLocaleString("en-PH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </p>
+      </div>
 
-        <div className="space-y-4">
-          {/* Date Picker */}
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="collection-date">Date</Label>
-            <Popover open={open} onOpenChange={setOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  id="collection-date"
-                  className="w-48 justify-between font-normal"
-                >
-                  {date.toLocaleDateString("en-PH", {
-                    year: "numeric",
-                    month: "short",
-                    day: "2-digit",
-                  })}
-                  <ChevronDownIcon className="ml-2 h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={date}
-                  captionLayout="dropdown"
-                  onSelect={(d) => {
-                    if (d) {
-                      setDate(d)
-                      setOpen(false)
-                    }
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+      {/* Collection Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Amount */}
+        <div>
+          <Label htmlFor="amount">Collection Amount *</Label>
+          <Input
+            id="amount"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={formData.amount}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              handleInputChange("amount", e.target.value)
+            }
+            required
+          />
+        </div>
 
-          {/* Receipt No */}
-          <div>
-            <Label htmlFor="receipt-no">Receipt No.</Label>
-            <Input
-              id="receipt-no"
-              value={receiptNo}
-              onChange={(e) => setReceiptNo(e.target.value)}
-              className="mt-1 w-full"
-            />
-          </div>
+        {/* Payment Method */}
+        <div>
+          <Label htmlFor="paymentMethod">Payment Method *</Label>
+          <Select
+            value={formData.paymentMethod}
+            onValueChange={(v) => handleInputChange("paymentMethod", v)}
+          >
+            <SelectTrigger id="paymentMethod">
+              <SelectValue placeholder="Select payment method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="check">Check</SelectItem>
+              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+              <SelectItem value="credit_card">Credit Card</SelectItem>
+              <SelectItem value="gcash">GCash</SelectItem>
+              <SelectItem value="paymaya">PayMaya</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          {/* Payment Method */}
-          <div>
-            <Label htmlFor="payment-method">Payment Method</Label>
-            <Select
-              value={method}
-              onValueChange={setMethod}
-            >
-              <SelectTrigger id="payment-method" className="w-full mt-1">
-                <SelectValue placeholder="Select method" />
-              </SelectTrigger>
-              <SelectContent>
-                {["Cash", "Check", "Credit Card", "Bank Transfer"].map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Reference Number */}
+        <div>
+          <Label htmlFor="referenceNumber">Reference Number</Label>
+          <Input
+            id="referenceNumber"
+            placeholder="Check #, Transaction ID, etc."
+            value={formData.referenceNumber}
+            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              handleInputChange("referenceNumber", e.target.value)
+            }
+          />
+        </div>
 
-          {/* Reference (only if not Cash) */}
-          {method !== "Cash" && (
-            <div>
-              <Label htmlFor="reference">Reference</Label>
-              <Input
-                id="reference"
-                value={reference}
-                onChange={(e) => setReference(e.target.value)}
-                className="mt-1 w-full"
+        {/* Payment Date */}
+        <div>
+          <Label htmlFor="paymentDate">Payment Date *</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-left font-normal"
+                id="paymentDate"
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(formData.paymentDate, "PPP")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={formData.paymentDate}
+                onSelect={(date) =>
+                  handleInputChange(
+                    "paymentDate",
+                    date ?? new Date()
+                  )
+                }
+                initialFocus
               />
-            </div>
-          )}
+            </PopoverContent>
+          </Popover>
+        </div>
 
-          {/* Amount */}
-          <div>
-            <Label htmlFor="amount">Amount</Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              className="mt-1 w-full"
-            />
-          </div>
+        {/* Notes */}
+        <div>
+          <Label htmlFor="notes">Notes</Label>
+          <textarea
+            id="notes"
+            placeholder="Additional notes..."
+            rows={3}
+            className="mt-1 block w-full rounded-md border px-3 py-2"
+            value={formData.notes}
+            onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+              handleInputChange("notes", e.target.value)
+            }
+          />
         </div>
 
         {/* Actions */}
-        <div className="mt-6 flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+          >
             Cancel
           </Button>
           <Button
-            onClick={() =>
-              onSubmit({
-                date,
-                receiptNo,
-                paymentMethod: method,
-                reference,
-                amount,
-              })
+            type="submit"
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+            disabled={
+              formData.amount === "" || formData.paymentMethod === ""
             }
           >
-            Save Collection
+            Record Collection
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </form>
+    </div>
   )
 }

@@ -1,41 +1,32 @@
-import React, { useState, ChangeEvent } from 'react'
-import { router } from '@inertiajs/react'
+"use client"
+
+import { useState, type ChangeEvent, useCallback, useMemo } from "react"
+import { router } from "@inertiajs/react"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from '@/components/ui/table'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { FilterIcon, SearchIcon, ChevronDownIcon } from 'lucide-react'
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetClose,
-} from '@/components/ui/sheet'
+  FilterIcon,
+  SearchIcon,
+  ChevronDownIcon,
+  MoreHorizontalIcon,
+  UserPlusIcon,
+  FileTextIcon,
+  CreditCardIcon,
+} from "lucide-react"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu'
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from '@/components/ui/select'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import RecordCollectionForm from '@/components/RecordCollectionSheet'
+} from "@/components/ui/dropdown-menu"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { Label } from "@/components/ui/label"
+import RecordCollectionSheet from "@/components/RecordCollectionSheet"
 
 interface Customer {
   id: number
@@ -59,8 +50,22 @@ interface Filters {
   search?: string
   per_page?: number
   sort_field?: string
-  sort_dir?: 'asc' | 'desc'
+  sort_dir?: "asc" | "desc"
   page?: number
+  name_filter?: string
+  email_filter?: string
+  phone_filter?: string
+  balance_filter?: string
+  status_filter?: string
+}
+
+interface RecordCollectionData {
+  customerId: number
+  amount: number
+  paymentMethod: string
+  referenceNumber: string
+  paymentDate: Date
+  notes: string
 }
 
 interface CustomersProps {
@@ -69,131 +74,222 @@ interface CustomersProps {
   filters: Filters
 }
 
-export default function Customers({ section, customers, filters }: CustomersProps) {
+// Debounce utility function with proper typing
+function debounce<T extends unknown[]>(func: (...args: T) => void, wait: number): (...args: T) => void {
+  let timeout: NodeJS.Timeout
+  return (...args: T) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }
+}
+
+export default function CustomersFixed({ section, customers, filters }: CustomersProps) {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
-  const [searchText, setSearchText] = useState(filters.search || '')
+  const [searchText, setSearchText] = useState(filters.search || "")
   const [filterOpen, setFilterOpen] = useState(false)
-  const [visibleCols, setVisibleCols] = useState<Record<keyof Customer, boolean>>({
-    name: true,
-    email: true,
-    phone: true,
-    balance: true,
-    status: true,
-    id: false,
-  })
   const [sheetCustomer, setSheetCustomer] = useState<Customer | null>(null)
+
+  // Column filters
+  const [columnFilters, setColumnFilters] = useState({
+    name: filters.name_filter || "",
+    email: filters.email_filter || "",
+    phone: filters.phone_filter || "",
+    balance: filters.balance_filter || "",
+    status: filters.status_filter || "",
+  })
 
   const data = customers.data
 
-  function updateQuery(key: keyof Filters, value: string | number) {
-    router.get(
-      `/accounting/receivables/${section}`,
-      { ...filters, [key]: value },
-      { preserveState: true, replace: true }
-    )
-  }
+  // Memoized debounced function with proper dependencies
+  const debouncedUpdateQuery = useMemo(
+    () =>
+      debounce((key: keyof Filters, value: string | number) => {
+        router.get(
+          `/accounting/receivables/${section}`,
+          { ...filters, [key]: value },
+          {
+            preserveState: true,
+            replace: true,
+            only: ["customers", "filters"],
+          },
+        )
+      }, 300),
+    [section, filters],
+  )
 
-  function handleSearch(e: ChangeEvent<HTMLInputElement>) {
-    const v = e.target.value
-    setSearchText(v)
-    updateQuery('search', v)
-  }
+  const updateQuery = useCallback(
+    (key: keyof Filters, value: string | number) => {
+      router.get(
+        `/accounting/receivables/${section}`,
+        { ...filters, [key]: value },
+        {
+          preserveState: true,
+          replace: true,
+          only: ["customers", "filters"],
+        },
+      )
+    },
+    [section, filters],
+  )
 
-  function clearSearch() {
-    setSearchText('')
-    updateQuery('search', '')
-  }
+  const handleSearch = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value
+      setSearchText(v)
+      debouncedUpdateQuery("search", v)
+    },
+    [debouncedUpdateQuery],
+  )
 
-  function toggleSelect(id: number) {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
-  }
+  const handleColumnFilter = useCallback(
+    (column: keyof typeof columnFilters, value: string) => {
+      setColumnFilters((prev) => ({ ...prev, [column]: value }))
+      debouncedUpdateQuery(`${column}_filter` as keyof Filters, value)
+    },
+    [debouncedUpdateQuery],
+  )
 
-  function toggleSelectAll() {
+  const clearSearch = useCallback(() => {
+    setSearchText("")
+    updateQuery("search", "")
+  }, [updateQuery])
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
     if (selectedIds.length === data.length) {
       setSelectedIds([])
     } else {
       setSelectedIds(data.map((c) => c.id))
     }
-  }
+  }, [selectedIds.length, data])
 
-  function handleSort(field: keyof Customer) {
-    const dir = filters.sort_field === field && filters.sort_dir === 'asc' ? 'desc' : 'asc'
-    updateQuery('sort_field', field)
-    updateQuery('sort_dir', dir)
-  }
+  const handleSort = useCallback(
+    (field: keyof Customer) => {
+      const dir = filters.sort_field === field && filters.sort_dir === "asc" ? "desc" : "asc"
+      updateQuery("sort_field", field)
+      updateQuery("sort_dir", dir)
+    },
+    [filters.sort_field, filters.sort_dir, updateQuery],
+  )
 
-  function toggleColumn(col: keyof Customer) {
-    setVisibleCols((prev) => ({ ...prev, [col]: !prev[col] }))
-  }
-
-  function handleAction(action: string, cust: Customer) {
-    if (action === 'view') {
-      router.visit(`/customers/${cust.id}`)
-    }
-    if (action === 'invoice') {
+  const handleMainAction = useCallback((cust: Customer) => {
+    if (cust.balance > 0) {
+      setSheetCustomer(cust)
+    } else {
       router.visit(`/invoices/create?customer=${cust.id}`)
     }
-    if (action === 'record') {
-      setSheetCustomer(cust)
+  }, [])
+
+  const handleMenuAction = useCallback((action: string, cust: Customer) => {
+    switch (action) {
+      case "view":
+        router.visit(`/customers/${cust.id}`)
+        break
+      case "invoice":
+        router.visit(`/invoices/create?customer=${cust.id}`)
+        break
+      case "record":
+        setSheetCustomer(cust)
+        break
+      case "statement":
+        router.visit(`/statements/send?customer=${cust.id}`)
+        break
+      case "inactive":
+        router.patch(`/customers/${cust.id}/status`, { status: "inactive" })
+        break
     }
-    if (action === 'statement') {
-      router.visit(`/statements/send?customer=${cust.id}`)
+  }, [])
+
+  const handleNewCustomer = useCallback(() => {
+    router.visit("/customers/create")
+  }, [])
+
+  // Format balance with comma and 2 decimal places
+  const formatBalance = useCallback((balance: number) => {
+    return balance.toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  }, [])
+
+  const handleCollectionSubmit = useCallback((data: RecordCollectionData) => {
+    // Convert to proper format for Laravel
+    const formData = {
+      customer_id: data.customerId,
+      amount: data.amount,
+      payment_method: data.paymentMethod,
+      reference_number: data.referenceNumber,
+      payment_date: data.paymentDate.toISOString().split("T")[0], // Format as YYYY-MM-DD
+      notes: data.notes,
     }
-  }
+
+    router.post("/collections", formData, {
+      onSuccess: () => {
+        setSheetCustomer(null)
+        // Refresh the customers data
+        router.reload({ only: ["customers"] })
+      },
+      onError: (errors) => {
+        console.error("Collection submission failed:", errors)
+      },
+    })
+  }, [])
 
   return (
     <div className="space-y-6">
       {/* Top Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          {/* Search */}
+          {/* Global Search */}
           <div className="relative">
             <Input
-              placeholder="Search customers..."
+              placeholder="Search all columns..."
               value={searchText}
               onChange={handleSearch}
-              className="pl-10 pr-10"
+              className="pl-10 pr-10 w-80"
             />
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             {searchText && (
               <button
                 onClick={clearSearch}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 text-lg"
               >
                 ×
               </button>
             )}
           </div>
 
-          {/* Filter */}
+          {/* Column Filters */}
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="flex items-center space-x-1">
                 <FilterIcon className="h-4 w-4" />
-                <span>Filter</span>
+                <span>Filter Columns</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="p-4">
-              <div className="font-medium mb-2">Toggle Columns</div>
-              {(['name','email','phone','balance','status'] as (keyof Customer)[]).map((col) => (
-                <div key={col} className="flex items-center mb-1">
-                  <Checkbox
-                    checked={visibleCols[col]}
-                    onCheckedChange={() => toggleColumn(col)}
-                  />
-                  <span className="ml-2">{col.charAt(0).toUpperCase() + col.slice(1)}</span>
-                </div>
-              ))}
+            <PopoverContent className="w-80 p-4">
+              <div className="font-medium mb-4">Filter by Column</div>
+              <div className="space-y-3">
+                {Object.entries(columnFilters).map(([column, value]) => (
+                  <div key={column}>
+                    <Label className="text-sm font-medium capitalize">{column}</Label>
+                    <Input
+                      placeholder={`Filter by ${column}...`}
+                      value={value}
+                      onChange={(e) => handleColumnFilter(column as keyof typeof columnFilters, e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                ))}
+              </div>
             </PopoverContent>
           </Popover>
 
           {/* Per-page */}
-          <Select
-            value={(filters.per_page || 10).toString()}
-            onValueChange={(v) => updateQuery('per_page', Number(v))}
-          >
+          <Select value={(filters.per_page || 10).toString()} onValueChange={(v) => updateQuery("per_page", Number(v))}>
             <SelectTrigger className="w-20">
               <SelectValue placeholder={`${filters.per_page ?? 10}`} />
             </SelectTrigger>
@@ -201,39 +297,43 @@ export default function Customers({ section, customers, filters }: CustomersProp
               <SelectItem value="10">10</SelectItem>
               <SelectItem value="20">20</SelectItem>
               <SelectItem value="30">30</SelectItem>
+              <SelectItem value="50">50</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* Create New Customer */}
+        {/* New Customer Button */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="bg-orange-600 hover:bg-orange-700 text-white flex items-center">
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center"
+              onClick={handleNewCustomer}
+            >
+              <UserPlusIcon className="mr-2 h-4 w-4" />
               New Customer
               <ChevronDownIcon className="ml-1 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => router.visit('/contacts/create?type=customer')}>
-              New Customer Category
+            <DropdownMenuItem onSelect={() => router.visit("/customers/create")}>
+              <UserPlusIcon className="mr-2 h-4 w-4" />
+              New Customer
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => {/* import customers logic */}}>
-              Import Customers
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => {/* import category logic */}}>
-              Import Category
+            <DropdownMenuItem onSelect={() => router.visit("/customers/import")}>Import Customers</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => router.visit("/customers/categories")}>
+              Manage Categories
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Table */}
-      <div className="overflow-auto rounded-md border">
+      {/* Sticky Table Container */}
+      <div className="overflow-auto rounded-md border max-h-[70vh]">
         <Table>
-          <TableHeader className="bg-gray-50 sticky top-0">
+          <TableHeader className="bg-gray-50 sticky top-0 z-10">
             <TableRow>
-              <TableHead className="w-12">
+              <TableHead className="w-12 sticky top-0 bg-gray-50">
                 <Checkbox
                   checked={selectedIds.length === data.length && data.length > 0}
                   onCheckedChange={toggleSelectAll}
@@ -241,36 +341,35 @@ export default function Customers({ section, customers, filters }: CustomersProp
                 />
               </TableHead>
 
-              {(['name','email','phone','balance','status'] as (keyof Customer)[]).map((field) =>
-                visibleCols[field] && (
-                  <TableHead
-                    key={field}
-                    className="cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort(field)}
-                  >
-                    <div className="flex items-center space-x-1 font-medium">
-                      <span>{field.charAt(0).toUpperCase() + field.slice(1)}</span>
-                      <span className="text-xs text-gray-400">⇅</span>
-                      {filters.sort_field === field && (
-                        <span className="text-xs">{filters.sort_dir === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </div>
-                  </TableHead>
-                )
-              )}
+              {(["name", "email", "phone", "balance", "status"] as (keyof Customer)[]).map((field) => (
+                <TableHead
+                  key={field}
+                  className="cursor-pointer hover:bg-gray-100 sticky top-0 bg-gray-50"
+                  onClick={() => handleSort(field)}
+                >
+                  <div className="flex items-center space-x-1 font-medium">
+                    <span>{field.charAt(0).toUpperCase() + field.slice(1)}</span>
+                    <span className="text-xs text-gray-400">⇅</span>
+                    {filters.sort_field === field && (
+                      <span className="text-xs">{filters.sort_dir === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </TableHead>
+              ))}
 
-              <TableHead className="text-center font-medium">Actions</TableHead>
+              <TableHead className="text-center font-medium sticky top-0 bg-gray-50">Actions</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {data.length > 0 ? (
               data.map((cust) => {
-                const hasBal = cust.balance > 0
-                const primary = hasBal ? 'record' : 'invoice'
-                const label = hasBal ? 'Record Collection' : 'Create Invoice'
+                const hasBalance = cust.balance > 0
+                const mainActionLabel = hasBalance ? "Record Collection" : "Create Invoice"
+                const MainActionIcon = hasBalance ? CreditCardIcon : FileTextIcon
+
                 return (
-                  <TableRow key={cust.id}>
+                  <TableRow key={cust.id} className="hover:bg-gray-50">
                     <TableCell>
                       <Checkbox
                         checked={selectedIds.includes(cust.id)}
@@ -278,45 +377,79 @@ export default function Customers({ section, customers, filters }: CustomersProp
                         aria-label={`Select ${cust.name}`}
                       />
                     </TableCell>
-                    {visibleCols.name && <TableCell className="font-medium">{cust.name}</TableCell>}
-                    {visibleCols.email && <TableCell>{cust.email ?? 'N/A'}</TableCell>}
-                    {visibleCols.phone && <TableCell>{cust.phone ?? 'N/A'}</TableCell>}
-                    {visibleCols.balance && (
-                      <TableCell>
-                        <span className={`font-medium ${hasBal ? 'text-red-600' : 'text-green-600'}`}>
-                          ₱{cust.balance.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}
-                        </span>
-                      </TableCell>
-                    )}
-                    {visibleCols.status && (
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          cust.status==='active'?'bg-green-100 text-green-800':'bg-gray-100 text-gray-800'
-                        }`}>
-                          {cust.status}
-                        </span>
-                      </TableCell>
-                    )}
+
+                    <TableCell className="font-medium">{cust.name}</TableCell>
+                    <TableCell>{cust.email ?? "N/A"}</TableCell>
+                    <TableCell>{cust.phone ?? "N/A"}</TableCell>
+                    <TableCell>
+                      <span className={`font-medium ${hasBalance ? "text-red-600" : "text-green-600"}`}>
+                        ₱{formatBalance(cust.balance)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          cust.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {cust.status}
+                      </span>
+                    </TableCell>
+
                     <TableCell className="text-center">
-                      <Select onValueChange={(act) => handleAction(act, cust)}>
-                        <SelectTrigger className="w-8 h-8 p-0">•••</SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={primary}>{label}</SelectItem>
-                          {primary !== 'record' && <SelectItem value="record">Record Collection</SelectItem>}
-                          {primary !== 'invoice' && <SelectItem value="invoice">Create Invoice</SelectItem>}
-                          <SelectItem value="view">View</SelectItem>
-                          <SelectItem value="statement">Send Statement</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center justify-center space-x-2">
+                        {/* Main Action Button */}
+                        <Button
+                          size="sm"
+                          className={hasBalance ? "bg-orange-600 hover:bg-orange-700" : ""}
+                          variant={hasBalance ? "default" : "default"}
+                          onClick={() => handleMainAction(cust)}
+                        >
+                          <MainActionIcon className="mr-1 h-3 w-3" />
+                          {mainActionLabel}
+                        </Button>
+
+                        {/* More Actions Menu */}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontalIcon className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleMenuAction("view", cust)}>
+                              View Details
+                            </DropdownMenuItem>
+                            {!hasBalance && (
+                              <DropdownMenuItem onSelect={() => handleMenuAction("record", cust)}>
+                                Record Collection
+                              </DropdownMenuItem>
+                            )}
+                            {hasBalance && (
+                              <DropdownMenuItem onSelect={() => handleMenuAction("invoice", cust)}>
+                                Create Invoice
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onSelect={() => handleMenuAction("statement", cust)}>
+                              Send Statement
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onSelect={() => handleMenuAction("inactive", cust)}
+                              className="text-red-600"
+                            >
+                              Make Inactive
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={
-                  Object.values(visibleCols).filter(Boolean).length + 2
-                } className="text-center py-8 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                   No customers found
                 </TableCell>
               </TableRow>
@@ -329,35 +462,38 @@ export default function Customers({ section, customers, filters }: CustomersProp
       {data.length > 0 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-gray-600">
-            Showing {customers.from}–{customers.to} of {customers.total}
+            Showing {customers.from}–{customers.to} of {customers.total} customers
           </p>
           <div className="flex items-center space-x-1">
             <Button
               size="sm"
               variant="outline"
               disabled={customers.current_page <= 1}
-              onClick={() => updateQuery('page', customers.current_page - 1)}
+              onClick={() => updateQuery("page", customers.current_page - 1)}
             >
               Previous
             </Button>
-            {Array.from({ length: customers.last_page }).map((_, i) => {
+
+            {/* Smart pagination - show max 5 pages */}
+            {Array.from({ length: Math.min(5, customers.last_page) }).map((_, i) => {
               const page = i + 1
               return (
                 <Button
                   key={page}
                   size="sm"
-                  variant={customers.current_page===page?'default':'outline'}
-                  onClick={() => updateQuery('page', page)}
+                  variant={customers.current_page === page ? "default" : "outline"}
+                  onClick={() => updateQuery("page", page)}
                 >
                   {page}
                 </Button>
               )
             })}
+
             <Button
               size="sm"
               variant="outline"
-              disabled={customers.current_page>=customers.last_page}
-              onClick={() => updateQuery('page', customers.current_page+1)}
+              disabled={customers.current_page >= customers.last_page}
+              onClick={() => updateQuery("page", customers.current_page + 1)}
             >
               Next
             </Button>
@@ -367,22 +503,15 @@ export default function Customers({ section, customers, filters }: CustomersProp
 
       {/* Record Collection Sheet */}
       <Sheet open={!!sheetCustomer} onOpenChange={() => setSheetCustomer(null)}>
-        <SheetTrigger asChild><div/></SheetTrigger>
-        <SheetContent side="right" className="max-w-md">
+        <SheetContent side="right" className="w-[500px] sm:w-[540px]">
           <SheetHeader>
-            <SheetTitle>
-              {sheetCustomer ? `Record Collection: ${sheetCustomer.name}` : 'Record Collection'}
-            </SheetTitle>
-            <SheetClose />
+            <SheetTitle>Record Collection</SheetTitle>
           </SheetHeader>
           {sheetCustomer && (
-            <RecordCollectionForm
+            <RecordCollectionSheet
               customer={sheetCustomer}
               onClose={() => setSheetCustomer(null)}
-              onSubmit={(data) => {
-                console.log('Saved:', data)
-                setSheetCustomer(null)
-              }}
+              onSubmit={handleCollectionSubmit}
             />
           )}
         </SheetContent>
