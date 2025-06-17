@@ -2,7 +2,14 @@
 
 import { useState, type ChangeEvent, useCallback, useMemo } from "react"
 import { router } from "@inertiajs/react"
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -23,7 +30,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import RecordCollectionSheet from "@/components/RecordCollectionSheet"
@@ -74,7 +87,7 @@ interface CustomersProps {
   filters: Filters
 }
 
-// Debounce utility function with proper typing
+// Debounce utility
 function debounce<T extends unknown[]>(func: (...args: T) => void, wait: number): (...args: T) => void {
   let timeout: NodeJS.Timeout
   return (...args: T) => {
@@ -89,7 +102,6 @@ export default function CustomersFixed({ section, customers, filters }: Customer
   const [filterOpen, setFilterOpen] = useState(false)
   const [sheetCustomer, setSheetCustomer] = useState<Customer | null>(null)
 
-  // Column filters
   const [columnFilters, setColumnFilters] = useState({
     name: filters.name_filter || "",
     email: filters.email_filter || "",
@@ -100,8 +112,24 @@ export default function CustomersFixed({ section, customers, filters }: Customer
 
   const data = customers.data
 
-  // Memoized debounced function with proper dependencies
-  const debouncedUpdateQuery = useMemo(
+  // Batched updateQuery
+  const updateQuery = useCallback(
+    (params: Partial<Filters>) => {
+      router.get(
+        `/accounting/receivables/${section}`,
+        { ...filters, ...params },
+        {
+          preserveState: true,
+          replace: true,
+          only: ["customers", "filters"],
+        }
+      )
+    },
+    [section, filters]
+  )
+
+  // Debounced raw GET for search & column filters
+  const debouncedUpdate = useMemo(
     () =>
       debounce((key: keyof Filters, value: string | number) => {
         router.get(
@@ -111,51 +139,38 @@ export default function CustomersFixed({ section, customers, filters }: Customer
             preserveState: true,
             replace: true,
             only: ["customers", "filters"],
-          },
+          }
         )
       }, 300),
-    [section, filters],
-  )
-
-  const updateQuery = useCallback(
-    (key: keyof Filters, value: string | number) => {
-      router.get(
-        `/accounting/receivables/${section}`,
-        { ...filters, [key]: value },
-        {
-          preserveState: true,
-          replace: true,
-          only: ["customers", "filters"],
-        },
-      )
-    },
-    [section, filters],
+    [section, filters]
   )
 
   const handleSearch = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
       const v = e.target.value
       setSearchText(v)
-      debouncedUpdateQuery("search", v)
+      debouncedUpdate("search", v)
     },
-    [debouncedUpdateQuery],
-  )
-
-  const handleColumnFilter = useCallback(
-    (column: keyof typeof columnFilters, value: string) => {
-      setColumnFilters((prev) => ({ ...prev, [column]: value }))
-      debouncedUpdateQuery(`${column}_filter` as keyof Filters, value)
-    },
-    [debouncedUpdateQuery],
+    [debouncedUpdate]
   )
 
   const clearSearch = useCallback(() => {
     setSearchText("")
-    updateQuery("search", "")
+    updateQuery({ search: "" })
   }, [updateQuery])
 
+  const handleColumnFilter = useCallback(
+    (column: keyof typeof columnFilters, value: string) => {
+      setColumnFilters((prev) => ({ ...prev, [column]: value }))
+      debouncedUpdate(`${column}_filter` as keyof Filters, value)
+    },
+    [debouncedUpdate]
+  )
+
   const toggleSelect = useCallback((id: number) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }, [])
 
   const toggleSelectAll = useCallback(() => {
@@ -166,13 +181,13 @@ export default function CustomersFixed({ section, customers, filters }: Customer
     }
   }, [selectedIds.length, data])
 
+  // Single-call sort that resets page
   const handleSort = useCallback(
     (field: keyof Customer) => {
       const dir = filters.sort_field === field && filters.sort_dir === "asc" ? "desc" : "asc"
-      updateQuery("sort_field", field)
-      updateQuery("sort_dir", dir)
+      updateQuery({ sort_field: field, sort_dir: dir, page: 1 })
     },
-    [filters.sort_field, filters.sort_dir, updateQuery],
+    [filters, updateQuery]
   )
 
   const handleMainAction = useCallback((cust: Customer) => {
@@ -207,34 +222,28 @@ export default function CustomersFixed({ section, customers, filters }: Customer
     router.visit("/customers/create")
   }, [])
 
-  // Format balance with comma and 2 decimal places
-  const formatBalance = useCallback((balance: number) => {
-    return balance.toLocaleString("en-PH", {
+  const formatBalance = useCallback((bal: number) => {
+    return bal.toLocaleString("en-PH", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })
   }, [])
 
   const handleCollectionSubmit = useCallback((data: RecordCollectionData) => {
-    // Convert to proper format for Laravel
-    const formData = {
+    const payload = {
       customer_id: data.customerId,
       amount: data.amount,
       payment_method: data.paymentMethod,
       reference_number: data.referenceNumber,
-      payment_date: data.paymentDate.toISOString().split("T")[0], // Format as YYYY-MM-DD
+      payment_date: data.paymentDate.toISOString().split("T")[0],
       notes: data.notes,
     }
-
-    router.post("/collections", formData, {
+    router.post("/collections", payload, {
       onSuccess: () => {
         setSheetCustomer(null)
-        // Refresh the customers data
         router.reload({ only: ["customers"] })
       },
-      onError: (errors) => {
-        console.error("Collection submission failed:", errors)
-      },
+      onError: (errors) => console.error("Error:", errors),
     })
   }, [])
 
@@ -273,13 +282,15 @@ export default function CustomersFixed({ section, customers, filters }: Customer
             <PopoverContent className="w-80 p-4">
               <div className="font-medium mb-4">Filter by Column</div>
               <div className="space-y-3">
-                {Object.entries(columnFilters).map(([column, value]) => (
-                  <div key={column}>
-                    <Label className="text-sm font-medium capitalize">{column}</Label>
+                {Object.entries(columnFilters).map(([col, val]) => (
+                  <div key={col}>
+                    <Label className="text-sm font-medium capitalize">{col}</Label>
                     <Input
-                      placeholder={`Filter by ${column}...`}
-                      value={value}
-                      onChange={(e) => handleColumnFilter(column as keyof typeof columnFilters, e.target.value)}
+                      placeholder={`Filter by ${col}...`}
+                      value={val}
+                      onChange={(e) =>
+                        handleColumnFilter(col as keyof typeof columnFilters, e.target.value)
+                      }
                       className="mt-1"
                     />
                   </div>
@@ -289,7 +300,10 @@ export default function CustomersFixed({ section, customers, filters }: Customer
           </Popover>
 
           {/* Per-page */}
-          <Select value={(filters.per_page || 10).toString()} onValueChange={(v) => updateQuery("per_page", Number(v))}>
+          <Select
+            value={(filters.per_page || 10).toString()}
+            onValueChange={(v) => updateQuery({ per_page: Number(v), page: 1 })}
+          >
             <SelectTrigger className="w-20">
               <SelectValue placeholder={`${filters.per_page ?? 10}`} />
             </SelectTrigger>
@@ -302,25 +316,24 @@ export default function CustomersFixed({ section, customers, filters }: Customer
           </Select>
         </div>
 
-        {/* New Customer Button */}
+        {/* New Customer */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              className="bg-orange-600 hover:bg-orange-700 text-white flex items-center"
-              onClick={handleNewCustomer}
-            >
+            <Button className="bg-orange-600 hover:bg-orange-700 text-white flex items-center">
               <UserPlusIcon className="mr-2 h-4 w-4" />
               New Customer
               <ChevronDownIcon className="ml-1 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => router.visit("/customers/create")}>
+            <DropdownMenuItem onSelect={handleNewCustomer}>
               <UserPlusIcon className="mr-2 h-4 w-4" />
               New Customer
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => router.visit("/customers/import")}>Import Customers</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => router.visit("/customers/import")}>
+              Import Customers
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => router.visit("/customers/categories")}>
               Manage Categories
             </DropdownMenuItem>
@@ -328,7 +341,7 @@ export default function CustomersFixed({ section, customers, filters }: Customer
         </DropdownMenu>
       </div>
 
-      {/* Sticky Table Container */}
+      {/* Table */}
       <div className="overflow-auto rounded-md border max-h-[70vh]">
         <Table>
           <TableHeader className="bg-gray-50 sticky top-0 z-10">
@@ -340,7 +353,6 @@ export default function CustomersFixed({ section, customers, filters }: Customer
                   aria-label="Select all customers"
                 />
               </TableHead>
-
               {(["name", "email", "phone", "balance", "status"] as (keyof Customer)[]).map((field) => (
                 <TableHead
                   key={field}
@@ -356,7 +368,6 @@ export default function CustomersFixed({ section, customers, filters }: Customer
                   </div>
                 </TableHead>
               ))}
-
               <TableHead className="text-center font-medium sticky top-0 bg-gray-50">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -377,7 +388,6 @@ export default function CustomersFixed({ section, customers, filters }: Customer
                         aria-label={`Select ${cust.name}`}
                       />
                     </TableCell>
-
                     <TableCell className="font-medium">{cust.name}</TableCell>
                     <TableCell>{cust.email ?? "N/A"}</TableCell>
                     <TableCell>{cust.phone ?? "N/A"}</TableCell>
@@ -389,27 +399,24 @@ export default function CustomersFixed({ section, customers, filters }: Customer
                     <TableCell>
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          cust.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                          cust.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
                         }`}
                       >
                         {cust.status}
                       </span>
                     </TableCell>
-
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center space-x-2">
-                        {/* Main Action Button */}
                         <Button
                           size="sm"
                           className={hasBalance ? "bg-orange-600 hover:bg-orange-700" : ""}
-                          variant={hasBalance ? "default" : "default"}
                           onClick={() => handleMainAction(cust)}
                         >
                           <MainActionIcon className="mr-1 h-3 w-3" />
                           {mainActionLabel}
                         </Button>
-
-                        {/* More Actions Menu */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -469,12 +476,10 @@ export default function CustomersFixed({ section, customers, filters }: Customer
               size="sm"
               variant="outline"
               disabled={customers.current_page <= 1}
-              onClick={() => updateQuery("page", customers.current_page - 1)}
+              onClick={() => updateQuery({ page: customers.current_page - 1 })}
             >
               Previous
             </Button>
-
-            {/* Smart pagination - show max 5 pages */}
             {Array.from({ length: Math.min(5, customers.last_page) }).map((_, i) => {
               const page = i + 1
               return (
@@ -482,18 +487,17 @@ export default function CustomersFixed({ section, customers, filters }: Customer
                   key={page}
                   size="sm"
                   variant={customers.current_page === page ? "default" : "outline"}
-                  onClick={() => updateQuery("page", page)}
+                  onClick={() => updateQuery({ page })}
                 >
                   {page}
                 </Button>
               )
             })}
-
             <Button
               size="sm"
               variant="outline"
               disabled={customers.current_page >= customers.last_page}
-              onClick={() => updateQuery("page", customers.current_page + 1)}
+              onClick={() => updateQuery({ page: customers.current_page + 1 })}
             >
               Next
             </Button>
