@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
         // Run property and contact seeders
         $this->call([
             PropertiesTableSeeder::class,
+            ContactGroupSeeder::class,
             ContactSeeder::class,
         ]);
 

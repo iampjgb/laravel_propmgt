@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ContactGroup;
 
 class Contact extends Model
 {
@@ -16,11 +17,15 @@ class Contact extends Model
      */
     protected $fillable = [
         'property_id',
+        'contact_group_id',
         'name',
         'email',
         'phone',
         'category',
         'service_type',
+        'tin',
+        'vip',
+        'active',
     ];
 
     /**
@@ -29,5 +34,13 @@ class Contact extends Model
     public function property()
     {
         return $this->belongsTo(Property::class);
+    }
+
+    /**
+     * Get the contact group this contact belongs to.
+     */
+    public function contactGroup()
+    {
+        return $this->belongsTo(ContactGroup::class);
     }
 }

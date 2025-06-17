@@ -54,6 +54,8 @@ export function AppSidebar() {
   const [adminOpen, setAdminOpen] = useState(url.startsWith('/admin'));
   const [contactsOpen, setContactsOpen] = useState(url.startsWith('/admin/contacts'));
   const [accountingOpen, setAccountingOpen] = useState(url.startsWith('/accounting'));
+  // Receivables submenu open state
+  const [receivablesOpen, setReceivablesOpen] = useState(url.startsWith('/accounting/receivables'));
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Exclusive toggles for main menus
   function toggleAdmin() {
@@ -72,6 +74,8 @@ export function AppSidebar() {
       if (next) {
         setAdminOpen(false);
         setSettingsOpen(false);
+        // close Receivables if closing Accounting
+        if (!next) setReceivablesOpen(false);
       }
       return next;
     });
@@ -91,6 +95,16 @@ export function AppSidebar() {
     setContactsOpen(prev => !prev);
   }
   // Exclusive toggles for Admin submenus
+  function toggleReceivables() {
+    setReceivablesOpen(prev => {
+      const next = !prev;
+      if (next) {
+        // ensure Accounting menu is open when Receivables opens
+        setAccountingOpen(true);
+      }
+      return next;
+    });
+  }
 
   const sidebarConfig: SidebarConfigItem[] = [
     { title: 'Create new', icon: Plus, action: () => {}, tooltip: 'Create new' },
@@ -129,13 +143,27 @@ export function AppSidebar() {
       tooltip: 'Accounting',
       sub: [
         { title: 'Banking', href: '/accounting/banking', icon: Landmark },
-        { title: 'Income', href: '/accounting/income', icon: Banknote },
-        { title: 'Expense', href: '/accounting/expense', icon: ReceiptText },
-        { title: 'Accountant Tools', href: '/accounting/tools', icon: Wrench },
-        { title: 'Tax', href: '/accounting/tax', icon: Percent },
-        { title: 'Reports', href: '/accounting/reports', icon: FileText }
-      ]
-    },
+            {
+              title: 'Receivables',
+              icon: Banknote,
+              isOpen: receivablesOpen,
+              toggle: toggleReceivables,
+              sub: [
+                { title: 'Overview', href: '/accounting/receivables/overview' },
+                { title: 'Invoices', href: '/accounting/receivables/invoices' },
+                { title: 'Collections', href: '/accounting/receivables/collections' },
+                { title: 'Batch Transactions', href: '/accounting/receivables/batch-transactions' },
+                { title: 'Meter Reading', href: '/accounting/receivables/meter-reading' },
+                { title: 'Customers', href: '/accounting/receivables/customers' },
+                { title: 'Charges Items', href: '/accounting/receivables/charges-items' }
+              ]
+            },
+            { title: 'Payables', href: '/accounting/payables', icon: ReceiptText },
+             { title: 'Accountant Tools', href: '/accounting/tools', icon: Wrench },
+             { title: 'Tax', href: '/accounting/tax', icon: Percent },
+             { title: 'Reports', href: '/accounting/reports', icon: FileText }
+           ]
+         },
     {
       title: 'Settings',
       icon: Settings,
