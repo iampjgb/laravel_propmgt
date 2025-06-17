@@ -3,38 +3,47 @@
 namespace App\Http\Controllers\Accounting;
 
 use App\Http\Controllers\Controller;
+use App\Models\Contact;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\Contact;
-use App\Models\ContactGroup;
 
 class ReceivablesController extends Controller
 {
-    /**
-     * Display the specified Receivables section.
-     */
-    public function show(string $section)
+    public function show(Request $request, string $section)
     {
+        // Base props for every section
+        $props = [
+            'section' => $section,
+        ];
+
         if ($section === 'customers') {
-            $perPage = request()->get('per_page', 10);
-            $search = request()->get('search', '');
-            $sort = request()->get('sort', 'name');
-            $direction = request()->get('direction', 'asc');
+            $perPage   = $request->input('per_page', 10);
+            $search    = $request->input('search', '');
+            $sortField = $request->input('sort_field', 'name');
+            $sortDir   = $request->input('sort_dir', 'asc');
 
-            $query = Contact::with('contactGroup');
-            if ($search) {
-                $query->where('name', 'like', "%{$search}%");
-            }
-            $contacts = $query->orderBy($sort, $direction)
-                              ->paginate($perPage)
-                              ->withQueryString();
+            // Use Contact::customers() scope
+            $query = Contact::customers()
+                ->when($search, fn($q) => $q->where('name', 'like', "%{$search}%"))
+                ->orderBy($sortField, $sortDir);
 
-            return Inertia::render('accounting/Receivables', [
-                'section' => $section,
-                'contacts' => $contacts,
-                'contactGroups' => ContactGroup::orderBy('name')->get(['id', 'name']),
-            ]);
+            $customers = $query
+                ->paginate($perPage)
+                ->withQueryString()
+                ->through(fn(Contact $c) => [
+                    'id'       => $c->id,
+                    'name'     => $c->name,
+                    'email'    => $c->email,
+                    'phone'    => $c->phone,
+                    'address'  => $c->address,
+                    'balance'  => $c->balance,
+                    'status'   => $c->status,
+                ]);
+
+            $props['customers'] = $customers;
+            $props['filters']   = $request->only('search', 'per_page', 'sort_field', 'sort_dir');
         }
-        return Inertia::render('accounting/Receivables', ['section' => $section]);
+
+        return Inertia::render('Accounting/Receivables', $props);
     }
 }
